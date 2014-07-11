@@ -14,33 +14,67 @@
 
 package au.com.cba.omnia.maestro.example
 
-import scalaz._, Scalaz._
-
-import au.com.cba.omnia.maestro.core.codec._
+import com.twitter.scrooge.ThriftStruct
+import org.apache.hadoop.fs.Path
+import org.scalacheck.Arbitrary
+import org.scalacheck.Arbitrary._
+import scalaz.Scalaz._
+import scalaz.effect.IO
+import scalaz.scalacheck.ScalaCheckBinding._
+import au.com.cba.omnia.ebenezer.scrooge.ParquetScroogeTools
+import au.com.cba.omnia.maestro.core.codec._, Encode.apply
+import au.com.cba.omnia.maestro.example.thrift.Customer
 import au.com.cba.omnia.maestro.macros._
-import au.com.cba.omnia.maestro.api._
+import au.com.cba.omnia.maestro.test.Records
+import au.com.cba.omnia.thermometer.core._, Thermometer._
+import au.com.cba.omnia.thermometer.fact.PathFactoids._
 
-import au.com.cba.omnia.maestro.test.Spec
-import au.com.cba.omnia.maestro.test.Arbitraries._
-import au.com.cba.omnia.maestro.test.thrift.scrooge.Customer
-
-object CustomerSpec extends Spec with MacroSupport[Customer] { def is = s2"""
+object CustomerSpec extends ThermometerSpec with MacroSupport[Customer] with Records {
+  def is = s2"""
 
 Customer properties
 =================
 
   encode / decode       $codec
+  end to end pipeline   $facts
 
 """
+  
+  // Because this is a different customer to the one in maestro-test
+  implicit def CustomerArbitrary: Arbitrary[Customer] = Arbitrary((
+    arbitrary[String] |@|
+    arbitrary[String] |@|
+    arbitrary[String] |@|
+    arbitrary[String] |@|
+    arbitrary[String] |@|
+    arbitrary[Int] |@|
+    arbitrary[String])(Customer.apply))
 
+  val decoder = Macros.mkDecode[Customer]
   def codec = prop { (c: Customer) =>
-    Decode.decode[Customer](ValDecodeSource(Encode.encode(c))) must_== DecodeOk(c)
+    decoder.decode(ValDecodeSource(Encode.encode(c))) must_== DecodeOk(c)
 
     val unknown = UnknownDecodeSource(List(
-      c.customerId, c. customerName, c.customerAcct, c.customerCat,
-      c.customerSubCat, c.customerBalance.toString, c.effectiveDate
-    ))
+      c.id, c.name, c.acct, c.cat,
+      c.subCat, c.balance.toString, c.effectiveDate))
 
-    Decode.decode[Customer](unknown) must_== DecodeOk(c)
+    decoder.decode(unknown) must_== DecodeOk(c)
   }
+  val expectedRoot = path(getClass.getResource("expected").toString())
+
+  def actual = ParquetThermometerRecordReader[Customer]
+  def expected(path: Path): List[Customer] = DelimitedRecords(conf, expectedRoot </> path, '|', decoder)
+
+  lazy val cascade = new SplitCustomerCascade(scaldingArgs + ("env" -> List(dir)))
+
+  def facts = withEnvironment(path(getClass.getResource("environment").toString()))({
+    cascade.withFacts(
+      cascade.catView </> "S" </> "M" ==> (exists, records(actual, expected("by-cat" </> "S" </> "M.psv"))),
+      cascade.catView </> "S" </> "F" ==> (exists, records(actual, expected("by-cat" </> "S" </> "F.psv"))),
+      cascade.catView </> "F" </> "M" ==> (exists, records(actual, expected("by-cat" </> "F" </> "M.psv"))),
+      cascade.catView </> "F" </> "F" ==> (exists, records(actual, expected("by-cat" </> "F" </> "F.psv"))),
+      cascade.dateView </> "2014" </> "07" </> "01" ==> records(actual, expected("by-date" </> "2014-07-01.psv")),
+      cascade.dateView </> "2014" </> "07" </> "02" ==> records(actual, expected("by-date" </> "2014-07-02.psv")))
+  })
+
 }

@@ -74,7 +74,7 @@ object build extends Build {
         ++ depend.shapeless() ++ depend.testing()
         ++ depend.omnia("ebenezer-hive", "0.6.0-20140708061543-e140eba")
         ++ depend.omnia("humbug-core", "0.2.0-20140604045236-c8018a9")
-        ++ Seq("au.com.cba.omnia" %% "thermometer" % "0.1.0-20140621121315-e002b2f" % "test")
+        ++ Seq("au.com.cba.omnia" %% "thermometer" % "0.1.0-20140708064800-5dab04e" % "test")
     )
   )
 
@@ -147,6 +147,9 @@ object build extends Build {
         "org.scalacheck"           %% "scalacheck"                    % depend.versions.scalacheck,
         "org.scalaz"               %% "scalaz-scalacheck-binding"     % depend.versions.scalaz
       ) ++ depend.omnia("humbug-core", "0.2.0-20140604045236-c8018a9")
+        ++ depend.omnia("thermometer", "0.1.0-20140708064800-5dab04e")
+        ++ depend.hadoop()
     )
-  )
+  ).dependsOn(core)
+
 }

@@ -18,7 +18,7 @@ object GenUnravelPipes {
   val max = 22
 
   def gen(dir: File) = {
-    val dst = dir / "au" / "com" / "cba" / "maestro" / "core" / "scalding" / "UnravelPipes.scala"
+    val dst = dir / "au" / "com" / "cba" / "omnia" / "maestro" / "core" / "scalding" / "UnravelPipes.scala"
     IO.write(dst,
       s"""package au.com.cba.omnia.maestro.core
          |package scalding
