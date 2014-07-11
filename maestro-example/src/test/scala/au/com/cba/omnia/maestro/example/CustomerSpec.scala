@@ -29,8 +29,7 @@ import au.com.cba.omnia.maestro.test.Records
 import au.com.cba.omnia.thermometer.core._, Thermometer._
 import au.com.cba.omnia.thermometer.fact.PathFactoids._
 
-object CustomerSpec extends ThermometerSpec with MacroSupport[Customer] with Records {
-  def is = s2"""
+object CustomerSpec extends ThermometerSpec with MacroSupport[Customer] with Records { def is = s2"""
 
 Customer properties
 =================
