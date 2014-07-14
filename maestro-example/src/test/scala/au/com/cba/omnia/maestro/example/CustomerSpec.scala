@@ -65,21 +65,17 @@ Customer properties
 
     decoder.decode(unknown) must_== DecodeOk(c)
   }
-  val expectedRoot = path(getClass.getResource("expected").toString())
 
-  def actual = ParquetThermometerRecordReader[Customer]
-  def expected(path: Path): List[Customer] = DelimitedRecords(conf, expectedRoot </> path, '|', decoder)
+  val expectedRoot = path(getClass.getResource("expected").toString())
+  def actualReader = ParquetThermometerRecordReader[Customer]
+  def expectedReader = psvThermometerRecordReader[Customer](decoder)
 
   lazy val cascade = new SplitCustomerCascade(scaldingArgs + ("env" -> List(dir)))
 
   def facts = withEnvironment(path(getClass.getResource("environment").toString()))({
     cascade.withFacts(
-      cascade.catView </> "S" </> "M" ==> (exists, records(actual, expected("by-cat" </> "S" </> "M.psv"))),
-      cascade.catView </> "S" </> "F" ==> (exists, records(actual, expected("by-cat" </> "S" </> "F.psv"))),
-      cascade.catView </> "F" </> "M" ==> (exists, records(actual, expected("by-cat" </> "F" </> "M.psv"))),
-      cascade.catView </> "F" </> "F" ==> (exists, records(actual, expected("by-cat" </> "F" </> "F.psv"))),
-      cascade.dateView </> "2014" </> "07" </> "01" ==> records(actual, expected("by-date" </> "2014-07-01.psv")),
-      cascade.dateView </> "2014" </> "07" </> "02" ==> records(actual, expected("by-date" </> "2014-07-02.psv")))
+      path(cascade.catView) ==> recordsByDirectory(actualReader, expectedReader, expectedRoot </> "by-cat"),
+      path(cascade.dateView) ==> recordsByDirectory(actualReader, expectedReader, expectedRoot </> "by-date"))
   })
 
 }
