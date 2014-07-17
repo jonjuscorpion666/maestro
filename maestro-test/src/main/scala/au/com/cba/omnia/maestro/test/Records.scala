@@ -14,18 +14,9 @@ import au.com.cba.omnia.maestro.core.codec._
 import au.com.cba.omnia.thermometer.context.Context
 import au.com.cba.omnia.thermometer.core.Thermometer._
 import au.com.cba.omnia.thermometer.core.ThermometerRecordReader
+import au.com.cba.omnia.thermometer.context.Context
 
 trait Records {
-  object DelimitedRecords {
-    def apply[A](conf: Configuration, expectedPath: Path, delimiter: Char, decoder: Decode[A]): List[A] = {
-      new Context(conf).lines(expectedPath).map(l =>
-        decoder.decode(UnknownDecodeSource(l.split(delimiter).toList)) match {
-          case DecodeOk(c) => Some(c)
-          case _           => None
-        }).flatten
-
-    }
-  }
 
   object ParquetThermometerRecordReader {
     def apply[A <: ThriftStruct: Manifest] =
@@ -34,8 +25,12 @@ trait Records {
       })
   }
 
-  def psvThermometerRecordReader[A](decoder: Decode[A]) =
+  def delimitedThermometerRecordReader[A](delimiter: Char, decoder: Decode[A]) =
     ThermometerRecordReader((conf, path) => IO {
-      DelimitedRecords(conf, path, '|', decoder)
+      new Context(conf).lines(path).map(l =>
+        decoder.decode(UnknownDecodeSource(l.split(delimiter).toList)) match {
+          case DecodeOk(c) => Some(c)
+          case _           => None
+        }).flatten
     })
 }

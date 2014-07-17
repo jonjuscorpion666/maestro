@@ -26,16 +26,14 @@ import scalaz.effect.IO
 import scalaz.scalacheck.ScalaCheckBinding._
 
 import au.com.cba.omnia.ebenezer.scrooge.ParquetScroogeTools
-
-import au.com.cba.omnia.maestro.core.codec._, Encode.apply
+import au.com.cba.omnia.maestro.core.codec._
 import au.com.cba.omnia.maestro.example.thrift.Customer
 import au.com.cba.omnia.maestro.macros._
 import au.com.cba.omnia.maestro.test.Records
-
-import au.com.cba.omnia.thermometer.core._, Thermometer._
+import au.com.cba.omnia.thermometer.core._,Thermometer._
 import au.com.cba.omnia.thermometer.fact.PathFactoids._
 
-object CustomerSpec extends ThermometerSpec with MacroSupport[Customer] with Records { def is = s2"""
+class SplitCustomerSpec extends ThermometerSpec with MacroSupport[Customer] with Records { def is = s2"""
 
 Customer properties
 =================
@@ -44,7 +42,7 @@ Customer properties
   end to end pipeline   $facts
 
 """
-  
+
   // Because this is a different customer to the one in maestro-test
   implicit def CustomerArbitrary: Arbitrary[Customer] = Arbitrary((
     arbitrary[String] |@|
@@ -55,7 +53,7 @@ Customer properties
     arbitrary[Int] |@|
     arbitrary[String])(Customer.apply))
 
-  val decoder = Macros.mkDecode[Customer]
+  lazy val decoder = Macros.mkDecode[Customer]
   def codec = prop { (c: Customer) =>
     decoder.decode(ValDecodeSource(Encode.encode(c))) must_== DecodeOk(c)
 
@@ -66,16 +64,17 @@ Customer properties
     decoder.decode(unknown) must_== DecodeOk(c)
   }
 
-  val expectedRoot = path(getClass.getResource("expected").toString())
   def actualReader = ParquetThermometerRecordReader[Customer]
-  def expectedReader = psvThermometerRecordReader[Customer](decoder)
+  def expectedReader = delimitedThermometerRecordReader[Customer]('|', decoder)
 
-  lazy val cascade = new SplitCustomerCascade(scaldingArgs + ("env" -> List(dir)))
+  //user test hadoop user dir as env. 
+  lazy val cascade = new SplitCustomerCascade(scaldingArgs + ("env" -> List(".")))
 
   def facts = withEnvironment(path(getClass.getResource("environment").toString()))({
     cascade.withFacts(
-      path(cascade.catView) ==> recordsByDirectory(actualReader, expectedReader, expectedRoot </> "by-cat"),
-      path(cascade.dateView) ==> recordsByDirectory(actualReader, expectedReader, expectedRoot </> "by-date"))
+      path(cascade.catView)  ==> recordsByDirectory(actualReader, expectedReader, "split-expected" </> "by-cat"),
+      path(cascade.dateView) ==> recordsByDirectory(actualReader, expectedReader, "split-expected" </> "by-date")
+    )
   })
 
 }
